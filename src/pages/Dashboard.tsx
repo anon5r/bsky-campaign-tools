@@ -1,8 +1,8 @@
-import { useState } from 'react'
+import { useState, useMemo } from 'react'
 import { useAuth } from '../contexts/AuthContext'
 import { parsePostUrl, resolveDid, fetchAllReposters, fetchAllQuotes, fetchFollowers } from '../lib/bsky-helpers'
 import type { Participant } from '../lib/bsky-helpers'
-import { LogOut, Users, Repeat, MessageSquare, Gift, Search, AlertCircle } from 'lucide-react'
+import { LogOut, Users, Repeat, MessageSquare, Gift, Search, Download, CheckCircle, Trash2 } from 'lucide-react'
 import { format } from 'date-fns'
 import clsx from 'clsx'
 
@@ -13,93 +13,150 @@ export default function Dashboard() {
   const [postUrl, setPostUrl] = useState('')
   const [includeQuotes, setIncludeQuotes] = useState(true)
   const [untilDate, setUntilDate] = useState('')
+  const [lotteryName, setLotteryName] = useState('Campaign Winners')
   
   // State
-  const [isAnalyzing, setIsAnalyzing] = useState(false)
+  const [isFetchingInteractions, setIsFetchingInteractions] = useState(false)
+  const [isFetchingFollowers, setIsFetchingFollowers] = useState(false)
   const [statusMessage, setStatusMessage] = useState('')
-  const [participants, setParticipants] = useState<Participant[]>([])
+  
+  // Data
+  const [interactions, setInteractions] = useState<Participant[]>([])
+  const [followers, setFollowers] = useState<Set<string>>(new Set())
   
   // Winners
   const [winnerCount, setWinnerCount] = useState(1)
-  const [winners, setWinners] = useState<Participant[]>([])
+  const [currentWinners, setCurrentWinners] = useState<Participant[]>([])
+  const [confirmedWinners, setConfirmedWinners] = useState<Participant[]>([])
 
-  const handleAnalyze = async () => {
-    if (!agent || !userDid) return
+  // Derived Participants (Interactions filtered by Followers and Date)
+  const participants = useMemo(() => {
+    if (interactions.length === 0) return []
+    // If followers are not fetched yet, assume 0 valid participants or maybe warn?
+    // Requirement says "extract followers... in that list find reposters".
+    // So if followers are empty (and fetched), result is empty.
+    // If followers are not fetched yet, we can't filter.
+    if (followers.size === 0) return []
+
+    const valid = interactions.filter(p => {
+      // Must be following me
+      if (!followers.has(p.did)) return false
+      
+      // Time filter
+      if (untilDate) {
+        if (p.type === 'quote' && p.repostedAt) {
+          return new Date(p.repostedAt) <= new Date(untilDate)
+        }
+        // Reposts are included if no precise time check fails
+        return true
+      }
+      return true
+    })
+
+    // Remove duplicates
+    return Array.from(new Map(valid.map(item => [item.did, item])).values())
+  }, [interactions, followers, untilDate])
+
+  // Filter out confirmed winners from the pool available for picking
+  const pickableParticipants = useMemo(() => {
+    const confirmedDids = new Set(confirmedWinners.map(w => w.did))
+    return participants.filter(p => !confirmedDids.has(p.did))
+  }, [participants, confirmedWinners])
+
+
+  const handleFetchInteractions = async () => {
+    if (!agent) return
     const urlData = parsePostUrl(postUrl)
     if (!urlData) {
       alert('Invalid Post URL. Please use a valid Bluesky post link.')
       return
     }
 
-    setIsAnalyzing(true)
-    setParticipants([])
-    setWinners([])
+    setIsFetchingInteractions(true)
     setStatusMessage('Resolving post...')
 
     try {
-      // 1. Resolve Post URI
       const authorDid = await resolveDid(agent, urlData.handle)
       if (!authorDid) throw new Error('Could not resolve author')
       const postUri = `at://${authorDid}/app.bsky.feed.post/${urlData.rkey}`
 
-      // 2. Fetch Reposters
       setStatusMessage('Fetching Reposters...')
       const reposters = await fetchAllReposters(agent, postUri, (c) => setStatusMessage(`Fetching Reposters... (${c})`))
       
-      // 3. Fetch Quotes (if requested)
       let quotes: Participant[] = []
       if (includeQuotes) {
         setStatusMessage('Fetching Quotes...')
         quotes = await fetchAllQuotes(agent, postUri, (c) => setStatusMessage(`Fetching Quotes... (${c})`))
       }
 
-      const allInteractions = [...reposters, ...quotes]
-      
-      // 4. Fetch Followers (to filter)
-      setStatusMessage('Fetching Your Followers (This may take a while)...')
-      // Note: We fetch followers of the CURRENT USER (campaign runner), not the post author (unless same)
-      const myFollowers = await fetchFollowers(agent, userDid, (c) => setStatusMessage(`Fetching Your Followers... (${c})`))
-
-      // 5. Filter
-      setStatusMessage('Processing results...')
-      
-      const validParticipants = allInteractions.filter(p => {
-        // Must be following me
-        if (!myFollowers.has(p.did)) return false
-        
-        // Time filter
-        if (untilDate) {
-          if (p.type === 'quote' && p.repostedAt) {
-            return new Date(p.repostedAt) <= new Date(untilDate)
-          }
-          // For reposts, we can't filter by time effectively, so we include them or exclude based on policy.
-          // For now, we include them but maybe mark them?
-          // Let's assume we include them as we can't verify.
-          return true
-        }
-        return true
-      })
-
-      // Remove duplicates (if someone reposted AND quoted)
-      const uniqueParticipants = Array.from(new Map(validParticipants.map(item => [item.did, item])).values())
-
-      setParticipants(uniqueParticipants)
-      setStatusMessage(`Found ${uniqueParticipants.length} qualified participants!`)
-
+      setInteractions([...reposters, ...quotes])
+      setStatusMessage(`Fetched ${reposters.length + quotes.length} interactions.`) 
     } catch (err) {
       console.error(err)
-      setStatusMessage('Error occurred during analysis.')
-      alert('An error occurred. Check console for details.')
+      alert('Error fetching interactions.')
     } finally {
-      setIsAnalyzing(false)
+      setIsFetchingInteractions(false)
+    }
+  }
+
+  const handleFetchFollowers = async () => {
+    if (!agent || !userDid) return
+    setIsFetchingFollowers(true)
+    setStatusMessage('Fetching Your Followers...')
+    try {
+      const myFollowers = await fetchFollowers(agent, userDid, (c) => setStatusMessage(`Fetching Your Followers... (${c})`))
+      setFollowers(myFollowers)
+      setStatusMessage(`Fetched ${myFollowers.size} followers.`) 
+    } catch (err) {
+      console.error(err)
+      alert('Error fetching followers.')
+    } finally {
+      setIsFetchingFollowers(false)
     }
   }
 
   const handlePickWinners = () => {
-    if (participants.length === 0) return
-    const count = Math.min(winnerCount, participants.length)
-    const shuffled = [...participants].sort(() => 0.5 - Math.random())
-    setWinners(shuffled.slice(0, count))
+    if (pickableParticipants.length === 0) {
+      alert('No qualified participants available to pick from.')
+      return
+    }
+    const count = Math.min(winnerCount, pickableParticipants.length)
+    const shuffled = [...pickableParticipants].sort(() => 0.5 - Math.random())
+    setCurrentWinners(shuffled.slice(0, count))
+  }
+
+  const handleConfirmWinners = () => {
+    setConfirmedWinners(prev => [...prev, ...currentWinners])
+    setCurrentWinners([])
+  }
+
+  const handleExportCSV = () => {
+    if (confirmedWinners.length === 0) return
+    
+    // CSV Header
+    const headers = ['Lottery Name', 'DID', 'Handle', 'Display Name', 'Type', 'Date']
+    const rows = confirmedWinners.map(w => [
+      lotteryName,
+      w.did,
+      w.handle,
+      w.displayName || '',
+      w.type,
+      w.repostedAt || ''
+    ])
+
+    const csvContent = [
+      headers.join(','),
+      ...rows.map(row => row.map(cell => `"${String(cell).replace(/"/g, '""')}"`).join(','))
+    ].join('\n')
+
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' })
+    const url = URL.createObjectURL(blob)
+    const link = document.createElement('a')
+    link.setAttribute('href', url)
+    link.setAttribute('download', `${lotteryName.replace(/\s+/g, '_')}_winners.csv`)
+    document.body.appendChild(link)
+    link.click()
+    document.body.removeChild(link)
   }
 
   return (
@@ -130,13 +187,22 @@ export default function Dashboard() {
             <div className="space-y-4">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Target Post URL</label>
-                <input 
-                  type="text" 
-                  placeholder="https://bsky.app/profile/..." 
-                  className="w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 p-2 border"
-                  value={postUrl}
-                  onChange={e => setPostUrl(e.target.value)}
-                />
+                <div className="flex space-x-2">
+                  <input 
+                    type="text" 
+                    placeholder="https://bsky.app/profile/..." 
+                    className="flex-1 rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 p-2 border"
+                    value={postUrl}
+                    onChange={e => setPostUrl(e.target.value)}
+                  />
+                  <button
+                    onClick={handleFetchInteractions}
+                    disabled={isFetchingInteractions || !postUrl}
+                    className="bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700 disabled:opacity-50 text-sm whitespace-nowrap"
+                  >
+                    {isFetchingInteractions ? 'Fetching...' : 'Fetch Reposts'}
+                  </button>
+                </div>
               </div>
               
               <div className="flex items-center space-x-4">
@@ -159,43 +225,46 @@ export default function Dashboard() {
                   value={untilDate}
                   onChange={e => setUntilDate(e.target.value)}
                 />
-                <p className="text-xs text-gray-500 mt-1">
-                  <AlertCircle className="w-3 h-3 inline mr-1"/>
-                  Time filtering is precise for Quotes. Standard reposts may not have exact timestamps available via API.
-                </p>
+              </div>
+
+              <div className="pt-4 border-t border-gray-200">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <span className="text-sm font-medium text-gray-700">Followers Data</span>
+                    <p className="text-xs text-gray-500">{followers.size > 0 ? `${followers.size} loaded` : 'Not loaded'}</p>
+                  </div>
+                  <button
+                    onClick={handleFetchFollowers}
+                    disabled={isFetchingFollowers}
+                    className="bg-green-600 text-white px-4 py-2 rounded-md hover:bg-green-700 disabled:opacity-50 text-sm"
+                  >
+                    {isFetchingFollowers ? 'Fetching...' : 'Fetch Followers'}
+                  </button>
+                </div>
               </div>
             </div>
 
-            <div className="flex flex-col justify-end">
-              <div className="bg-blue-50 p-4 rounded-lg mb-4 text-sm text-blue-800">
-                <p className="font-medium mb-1">Criteria:</p>
+            <div className="flex flex-col justify-between">
+              <div className="bg-blue-50 p-4 rounded-lg text-sm text-blue-800">
+                <p className="font-medium mb-1">Status:</p>
                 <ul className="list-disc list-inside space-y-1">
-                  <li>Must follow you (@{userHandle || '...'})</li>
-                  <li>Must have Reposted or Quoted the target post</li>
-                  {untilDate && <li>Must have acted before {new Date(untilDate).toLocaleString()}</li>}
+                  <li>Interactions Loaded: {interactions.length}</li>
+                  <li>Followers Loaded: {followers.size}</li>
+                  <li><strong>Qualified Participants: {participants.length}</strong></li>
+                  <li>Available to Pick: {pickableParticipants.length}</li>
                 </ul>
+                {statusMessage && <p className="mt-2 text-gray-600 animate-pulse">{statusMessage}</p>}
               </div>
-              <button 
-                onClick={handleAnalyze} 
-                disabled={isAnalyzing || !postUrl}
-                className={clsx(
-                  "w-full py-3 px-4 rounded-lg font-semibold text-white shadow-md transition-all",
-                  isAnalyzing || !postUrl ? "bg-gray-400 cursor-not-allowed" : "bg-blue-600 hover:bg-blue-700"
-                )}
-              >
-                {isAnalyzing ? 'Analyzing...' : 'Fetch Participants'}
-              </button>
-              {statusMessage && <p className="text-center text-sm text-gray-600 mt-2 animate-pulse">{statusMessage}</p>}
             </div>
           </div>
         </div>
 
-        {/* Results Section */}
+        {/* Results & Picker Section */}
         {participants.length > 0 && (
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
             
             {/* List */}
-            <div className="lg:col-span-2 bg-white rounded-xl shadow-lg border border-gray-100 overflow-hidden flex flex-col h-[600px]">
+            <div className="lg:col-span-2 bg-white rounded-xl shadow-lg border border-gray-100 overflow-hidden flex flex-col h-[700px]">
               <div className="p-4 border-b border-gray-100 flex justify-between items-center bg-gray-50">
                 <h3 className="font-semibold text-gray-700 flex items-center">
                   <Users className="w-5 h-5 mr-2 text-indigo-500"/> 
@@ -205,7 +274,7 @@ export default function Dashboard() {
               </div>
               <div className="overflow-y-auto flex-1 p-0">
                 <table className="min-w-full divide-y divide-gray-200">
-                  <thead className="bg-gray-50 sticky top-0">
+                  <thead className="bg-gray-50 sticky top-0 z-10">
                     <tr>
                       <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">User</th>
                       <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">DID</th>
@@ -215,7 +284,7 @@ export default function Dashboard() {
                   </thead>
                   <tbody className="bg-white divide-y divide-gray-200">
                     {participants.map((p) => (
-                      <tr key={p.did} className="hover:bg-gray-50 transition-colors">
+                      <tr key={p.did} className={clsx("hover:bg-gray-50 transition-colors", confirmedWinners.some(w => w.did === p.did) && "opacity-50 bg-gray-100")}>
                         <td className="px-6 py-4 whitespace-nowrap">
                           <div className="flex items-center">
                             <div className="flex-shrink-0 h-10 w-10">
@@ -249,51 +318,108 @@ export default function Dashboard() {
               </div>
             </div>
 
-            {/* Picker */}
-            <div className="space-y-6">
-              <div className="bg-white rounded-xl shadow-lg border border-gray-100 p-6">
+            {/* Picker & Winners */}
+            <div className="space-y-6 flex flex-col h-[700px]">
+              
+              {/* Controls */}
+              <div className="bg-white rounded-xl shadow-lg border border-gray-100 p-6 flex-shrink-0">
                  <h3 className="font-semibold text-gray-700 mb-4 flex items-center">
                   <Gift className="w-5 h-5 mr-2 text-pink-500"/> Pick Winners
                 </h3>
-                <div className="flex space-x-2 mb-4">
+                
+                <div className="mb-4">
+                  <label className="block text-xs font-medium text-gray-500 mb-1">Lottery Name (for CSV)</label>
+                  <input 
+                    type="text" 
+                    value={lotteryName} 
+                    onChange={e => setLotteryName(e.target.value)}
+                    className="w-full text-sm p-2 border rounded"
+                  />
+                </div>
+
+                <div className="flex space-x-2 mb-2">
                   <input 
                     type="number" 
                     min="1" 
-                    max={participants.length}
+                    max={pickableParticipants.length}
                     value={winnerCount}
                     onChange={e => setWinnerCount(parseInt(e.target.value))}
-                    className="block w-24 rounded-md border-gray-300 shadow-sm focus:border-pink-500 focus:ring-pink-500 p-2 border"
+                    className="block w-20 rounded-md border-gray-300 shadow-sm focus:border-pink-500 focus:ring-pink-500 p-2 border"
                   />
                   <button 
                     onClick={handlePickWinners}
-                    className="flex-1 bg-gradient-to-r from-pink-500 to-rose-500 hover:from-pink-600 hover:to-rose-600 text-white font-semibold py-2 px-4 rounded-md shadow-md transition-all"
+                    disabled={pickableParticipants.length === 0}
+                    className="flex-1 bg-gradient-to-r from-pink-500 to-rose-500 hover:from-pink-600 hover:to-rose-600 text-white font-semibold py-2 px-4 rounded-md shadow-md transition-all disabled:opacity-50"
                   >
                     Pick Randomly
                   </button>
                 </div>
+                <p className="text-xs text-gray-500 text-center">
+                  Available to pick: {pickableParticipants.length}
+                </p>
               </div>
 
-              {/* Winners List */}
-              {winners.length > 0 && (
-                <div className="bg-gradient-to-br from-yellow-50 to-orange-50 rounded-xl shadow-lg border border-yellow-200 p-6 relative overflow-hidden">
-                   <div className="absolute top-0 right-0 -mt-2 -mr-2 w-16 h-16 bg-yellow-300 rounded-full blur-2xl opacity-50"></div>
-                   <h3 className="font-bold text-yellow-800 mb-4 text-center text-lg uppercase tracking-wide">🎉 Winners 🎉</h3>
-                   <div className="space-y-4">
-                     {winners.map(w => (
-                       <div key={w.did} className="bg-white p-3 rounded-lg shadow-sm flex items-center border border-yellow-100">
-                          <img className="h-12 w-12 rounded-full ring-2 ring-yellow-400" src={w.avatar || `https://ui-avatars.com/api/?name=${encodeURIComponent(w.handle)}`} alt="" />
-                          <div className="ml-3 overflow-hidden">
+              {/* Current Draw (Tentative) */}
+              {currentWinners.length > 0 && (
+                <div className="bg-yellow-50 rounded-xl shadow-lg border border-yellow-200 p-4 flex-shrink-0">
+                   <h3 className="font-bold text-yellow-800 mb-2 text-center text-sm uppercase tracking-wide">Tentative Winners</h3>
+                   <div className="space-y-2 mb-4 max-h-40 overflow-y-auto">
+                     {currentWinners.map(w => (
+                       <div key={w.did} className="bg-white p-2 rounded flex items-center border border-yellow-100 text-sm">
+                          <img className="h-8 w-8 rounded-full" src={w.avatar || `https://ui-avatars.com/api/?name=${encodeURIComponent(w.handle)}`} alt="" />
+                          <div className="ml-2 overflow-hidden">
                             <p className="font-bold text-gray-900 truncate">{w.displayName || w.handle}</p>
-                            <p className="text-sm text-gray-500 truncate">@{w.handle}</p>
-                            <p className="text-[10px] text-gray-400 font-mono truncate">{w.did}</p>
+                            <p className="text-xs text-gray-500 truncate">@{w.handle}</p>
                           </div>
                        </div>
                      ))}
                    </div>
+                   <div className="flex space-x-2">
+                     <button onClick={() => setCurrentWinners([])} className="flex-1 py-1 text-gray-600 hover:bg-gray-200 rounded text-sm">Cancel</button>
+                     <button onClick={handleConfirmWinners} className="flex-1 py-1 bg-yellow-500 hover:bg-yellow-600 text-white rounded font-medium text-sm flex items-center justify-center">
+                       <CheckCircle className="w-4 h-4 mr-1"/> Confirm
+                     </button>
+                   </div>
                 </div>
               )}
-            </div>
 
+              {/* Confirmed Winners */}
+              <div className="bg-white rounded-xl shadow-lg border border-green-100 flex-1 flex flex-col overflow-hidden">
+                <div className="p-3 bg-green-50 border-b border-green-100 flex justify-between items-center">
+                   <h3 className="font-semibold text-green-800 flex items-center text-sm">
+                    <CheckCircle className="w-4 h-4 mr-1 text-green-600"/> Confirmed ({confirmedWinners.length})
+                  </h3>
+                  {confirmedWinners.length > 0 && (
+                     <button onClick={handleExportCSV} className="text-xs bg-white border border-green-200 text-green-700 px-2 py-1 rounded hover:bg-green-100 flex items-center">
+                       <Download className="w-3 h-3 mr-1"/> CSV
+                     </button>
+                  )}
+                </div>
+                <div className="flex-1 overflow-y-auto p-3 space-y-2">
+                  {confirmedWinners.length === 0 ? (
+                    <p className="text-center text-gray-400 text-sm mt-10">No confirmed winners yet.</p>
+                  ) : (
+                    confirmedWinners.map((w, i) => (
+                       <div key={i} className="bg-gray-50 p-2 rounded flex items-center border border-gray-100 text-sm relative group">
+                          <span className="text-xs text-gray-400 mr-2 w-4 text-center">{i+1}</span>
+                          <img className="h-8 w-8 rounded-full" src={w.avatar || `https://ui-avatars.com/api/?name=${encodeURIComponent(w.handle)}`} alt="" />
+                          <div className="ml-2 overflow-hidden flex-1">
+                            <p className="font-bold text-gray-900 truncate">{w.displayName || w.handle}</p>
+                            <p className="text-xs text-gray-500 truncate">@{w.handle}</p>
+                          </div>
+                          <button 
+                            onClick={() => setConfirmedWinners(prev => prev.filter((_, idx) => idx !== i))}
+                            className="hidden group-hover:block absolute right-2 text-red-400 hover:text-red-600"
+                          >
+                            <Trash2 className="w-4 h-4"/>
+                          </button>
+                       </div>
+                    ))
+                  )}
+                </div>
+              </div>
+
+            </div>
           </div>
         )}
       </main>
