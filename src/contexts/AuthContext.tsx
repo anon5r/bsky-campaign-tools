@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useEffect, useState, useCallback } from 'react'
 import { Agent } from '@atproto/api'
 import { client } from '../lib/auth'
+import { addToLoginHistory } from '../lib/login-history'
 
 interface AuthContextType {
   agent: Agent | null
@@ -8,7 +9,7 @@ interface AuthContextType {
   isLoading: boolean
   userDid: string | null
   userHandle: string | null
-  login: () => void
+  login: (handle: string) => Promise<void>
   logout: () => void
 }
 
@@ -31,6 +32,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           setUserDid(result.session.did)
           // @ts-ignore
           setUserHandle(result.session.handle)
+          // @ts-ignore
+          addToLoginHistory(result.session.handle)
         }
       } catch (error) {
         console.error('Auth initialization failed', error)
@@ -41,15 +44,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     initAuth()
   }, [])
 
-  const login = useCallback(async () => {
-    const handle = prompt('Enter your Bluesky handle (e.g. user.bsky.social):')
-    if (!handle) return
+  const login = useCallback(async (handle: string) => {
     try {
       await client.signIn(handle, {
         state: 'undefined',
       })
     } catch (err) {
       console.error('Sign in failed', err)
+      throw err
     }
   }, [])
 

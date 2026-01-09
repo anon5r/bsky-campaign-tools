@@ -208,6 +208,7 @@ export default function Dashboard() {
                   <thead className="bg-gray-50 sticky top-0">
                     <tr>
                       <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">User</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">DID</th>
                       <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Type</th>
                       <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Date</th>
                     </tr>
@@ -218,13 +219,16 @@ export default function Dashboard() {
                         <td className="px-6 py-4 whitespace-nowrap">
                           <div className="flex items-center">
                             <div className="flex-shrink-0 h-10 w-10">
-                              <img className="h-10 w-10 rounded-full bg-gray-200" src={p.avatar || 'https://ui-avatars.com/api/?name=?'} alt="" />
+                              <img className="h-10 w-10 rounded-full bg-gray-200" src={p.avatar || `https://ui-avatars.com/api/?name=${encodeURIComponent(p.handle)}`} alt="" />
                             </div>
                             <div className="ml-4">
                               <div className="text-sm font-medium text-gray-900">{p.displayName || p.handle}</div>
                               <div className="text-sm text-gray-500">@{p.handle}</div>
                             </div>
                           </div>
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-xs text-gray-400 font-mono">
+                          {p.did}
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap">
                           <span className={clsx(
@@ -277,10 +281,11 @@ export default function Dashboard() {
                    <div className="space-y-4">
                      {winners.map(w => (
                        <div key={w.did} className="bg-white p-3 rounded-lg shadow-sm flex items-center border border-yellow-100">
-                          <img className="h-12 w-12 rounded-full ring-2 ring-yellow-400" src={w.avatar || 'https://ui-avatars.com/api/?name=?'} alt="" />
-                          <div className="ml-3">
-                            <p className="font-bold text-gray-900">{w.displayName || w.handle}</p>
-                            <p className="text-sm text-gray-500">@{w.handle}</p>
+                          <img className="h-12 w-12 rounded-full ring-2 ring-yellow-400" src={w.avatar || `https://ui-avatars.com/api/?name=${encodeURIComponent(w.handle)}`} alt="" />
+                          <div className="ml-3 overflow-hidden">
+                            <p className="font-bold text-gray-900 truncate">{w.displayName || w.handle}</p>
+                            <p className="text-sm text-gray-500 truncate">@{w.handle}</p>
+                            <p className="text-[10px] text-gray-400 font-mono truncate">{w.did}</p>
                           </div>
                        </div>
                      ))}
