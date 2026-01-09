@@ -136,14 +136,46 @@ export async function fetchFollowers(
 ): Promise<Set<string>> {
   let cursor: string | undefined
   const followerDids = new Set<string>()
+  
+  // Retry configuration
+  const MAX_RETRIES = 3
+  const DELAY_MS = 300
+
+  const wait = (ms: number) => new Promise(resolve => setTimeout(resolve, ms))
 
   do {
-    const res = await agent.getFollowers({ actor, cursor, limit: 100 })
-    for (const follower of res.data.followers) {
-      followerDids.add(follower.did)
+    let retries = MAX_RETRIES
+    let success = false
+
+    while (retries > 0 && !success) {
+      try {
+        // Use explicit XRPC call for clarity
+        const res = await agent.app.bsky.graph.getFollowers({ actor, cursor, limit: 100 })
+        
+        for (const follower of res.data.followers) {
+          followerDids.add(follower.did)
+        }
+        
+        cursor = res.data.cursor
+        success = true
+        
+        if (onProgress) onProgress(followerDids.size)
+        
+        // Small delay to be nice to the API
+        await wait(DELAY_MS)
+
+      } catch (e) {
+        console.warn(`Fetch followers failed (cursor: ${cursor}), retrying... ${retries} left`, e)
+        retries--
+        if (retries === 0) {
+          console.error('Max retries reached for followers fetch.')
+          // Option: Throw error to alert user, or break to return partial results.
+          // Throwing ensures the user knows it's incomplete.
+          throw new Error('Failed to fetch all followers due to network or API errors.')
+        }
+        await wait(1000) // Longer wait on error
+      }
     }
-    cursor = res.data.cursor
-    if (onProgress) onProgress(followerDids.size)
   } while (cursor)
 
   return followerDids

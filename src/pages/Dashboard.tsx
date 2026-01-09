@@ -6,6 +6,10 @@ import { LogOut, Users, Repeat, MessageSquare, Gift, Search, Download, CheckCirc
 import { format } from 'date-fns'
 import clsx from 'clsx'
 
+interface ConfirmedWinner extends Participant {
+  confirmedLotteryName: string
+}
+
 export default function Dashboard() {
   const { agent, userDid, userHandle, logout } = useAuth()
   
@@ -13,7 +17,7 @@ export default function Dashboard() {
   const [postUrl, setPostUrl] = useState('')
   const [includeQuotes, setIncludeQuotes] = useState(true)
   const [untilDate, setUntilDate] = useState('')
-  const [lotteryName, setLotteryName] = useState('Campaign Winners')
+  const [lotteryName, setLotteryName] = useState('Campaign')
   
   // State
   const [isFetchingInteractions, setIsFetchingInteractions] = useState(false)
@@ -27,15 +31,11 @@ export default function Dashboard() {
   // Winners
   const [winnerCount, setWinnerCount] = useState(1)
   const [currentWinners, setCurrentWinners] = useState<Participant[]>([])
-  const [confirmedWinners, setConfirmedWinners] = useState<Participant[]>([])
+  const [confirmedWinners, setConfirmedWinners] = useState<ConfirmedWinner[]>([])
 
   // Derived Participants (Interactions filtered by Followers and Date)
   const participants = useMemo(() => {
     if (interactions.length === 0) return []
-    // If followers are not fetched yet, assume 0 valid participants or maybe warn?
-    // Requirement says "extract followers... in that list find reposters".
-    // So if followers are empty (and fetched), result is empty.
-    // If followers are not fetched yet, we can't filter.
     if (followers.size === 0) return []
 
     const valid = interactions.filter(p => {
@@ -47,7 +47,6 @@ export default function Dashboard() {
         if (p.type === 'quote' && p.repostedAt) {
           return new Date(p.repostedAt) <= new Date(untilDate)
         }
-        // Reposts are included if no precise time check fails
         return true
       }
       return true
@@ -90,7 +89,7 @@ export default function Dashboard() {
       }
 
       setInteractions([...reposters, ...quotes])
-      setStatusMessage(`Fetched ${reposters.length + quotes.length} interactions.`) 
+      setStatusMessage(`Fetched ${reposters.length + quotes.length} interactions.`)
     } catch (err) {
       console.error(err)
       alert('Error fetching interactions.')
@@ -106,7 +105,7 @@ export default function Dashboard() {
     try {
       const myFollowers = await fetchFollowers(agent, userDid, (c) => setStatusMessage(`Fetching Your Followers... (${c})`))
       setFollowers(myFollowers)
-      setStatusMessage(`Fetched ${myFollowers.size} followers.`) 
+      setStatusMessage(`Fetched ${myFollowers.size} followers.`)
     } catch (err) {
       console.error(err)
       alert('Error fetching followers.')
@@ -126,7 +125,11 @@ export default function Dashboard() {
   }
 
   const handleConfirmWinners = () => {
-    setConfirmedWinners(prev => [...prev, ...currentWinners])
+    const newConfirmed = currentWinners.map(w => ({
+      ...w,
+      confirmedLotteryName: lotteryName
+    }))
+    setConfirmedWinners(prev => [...prev, ...newConfirmed])
     setCurrentWinners([])
   }
 
@@ -136,7 +139,7 @@ export default function Dashboard() {
     // CSV Header
     const headers = ['Lottery Name', 'DID', 'Handle', 'Display Name', 'Type', 'Date']
     const rows = confirmedWinners.map(w => [
-      lotteryName,
+      w.confirmedLotteryName,
       w.did,
       w.handle,
       w.displayName || '',
@@ -149,16 +152,18 @@ export default function Dashboard() {
       ...rows.map(row => row.map(cell => `"${String(cell).replace(/"/g, '""')}"`).join(','))
     ].join('\n')
 
+    const dateStr = format(new Date(), 'yyyyMMdd_HHmm')
+    const fileName = `winners_${dateStr}.csv`
+
     const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' })
     const url = URL.createObjectURL(blob)
     const link = document.createElement('a')
     link.setAttribute('href', url)
-    link.setAttribute('download', `${lotteryName.replace(/\s+/g, '_')}_winners.csv`)
+    link.setAttribute('download', fileName)
     document.body.appendChild(link)
     link.click()
     document.body.removeChild(link)
   }
-
   return (
     <div className="min-h-screen bg-gray-50 text-gray-900 font-sans">
       {/* Header */}
