@@ -1,4 +1,4 @@
-import { Agent } from '@atproto/api'
+import {Agent} from '@atproto/api'
 
 export interface Participant {
   did: string
@@ -163,29 +163,30 @@ export async function fetchFollowers(
 ): Promise<Set<string>> {
   let cursor: string | undefined
   const followerDids = new Set<string>()
-  
-  // Retry configuration
-  const MAX_RETRIES = 5
-  // Increase delay to avoid rate limits more aggressively
-  const DELAY_MS = 800 
+
+  const DELAY_MS = 1000 // Normal delay between pages
+  const ERROR_WAIT_MS = 60000 // Wait 1 minute on error (Rate Limit handling)
 
   const wait = (ms: number) => new Promise(resolve => setTimeout(resolve, ms))
 
   let pageCount = 0
 
   do {
-    let retries = MAX_RETRIES
     let success = false
 
-    while (retries > 0 && !success) {
+    // Loop until this page is successfully fetched
+    while (!success) {
       try {
-        pageCount++
-        console.log(`Fetching followers page ${pageCount}... (Current total: ${followerDids.size})`)
-        
+        if (pageCount === 0) {
+          console.log('Starting follower fetch...')
+        }
+
+        // Use explicit XRPC call
         const res = await agent.app.bsky.graph.getFollowers({ actor, cursor, limit: 100 })
         
         const newFollowers = res.data.followers
-        console.log(`Page ${pageCount}: Got ${newFollowers.length} followers. Next cursor: ${res.data.cursor?.slice(0, 20)}...`)
+        pageCount++
+        console.log(`Page ${pageCount} fetched: ${newFollowers.length} items. (Total: ${followerDids.size + newFollowers.length})`)
 
         for (const follower of newFollowers) {
           followerDids.add(follower.did)
@@ -195,19 +196,15 @@ export async function fetchFollowers(
         success = true
         
         if (onProgress) onProgress(followerDids.size)
-        
-        // Wait to be gentle to the API
+
+        // Normal delay
         await wait(DELAY_MS)
 
       } catch (e) {
-        console.error(`Fetch followers failed at page ${pageCount} (cursor: ${cursor}), retrying... ${retries} retries left.`, e)
-        retries--
-        if (retries === 0) {
-          console.error('Max retries reached for followers fetch. Aborting.')
-          throw new Error(`Failed to fetch followers at page ${pageCount}. Please check console for details.`)
-        }
-        // Exponential backoff or longer wait on error
-        await wait(2000 + (MAX_RETRIES - retries) * 1000)
+        console.error(`Fetch failed at page ${pageCount + 1}. Likely Rate Limit. Waiting ${ERROR_WAIT_MS / 1000}s before retrying...`, e)
+        // Wait long enough for Rate Limit to reset
+        await wait(ERROR_WAIT_MS)
+        console.log('Retrying...')
       }
     }
   } while (cursor)
