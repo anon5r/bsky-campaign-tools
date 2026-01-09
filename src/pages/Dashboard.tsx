@@ -1,6 +1,6 @@
 import { useState, useMemo } from 'react'
 import { useAuth } from '../contexts/AuthContext'
-import { parsePostUrl, resolveDid, fetchAllReposters, fetchAllQuotes, fetchFollowers } from '../lib/bsky-helpers'
+import { parsePostUrl, resolveDid, fetchAllReposters, fetchAllQuotes, fetchFollowers, getPostCounts, getProfileFollowerCount } from '../lib/bsky-helpers'
 import type { Participant } from '../lib/bsky-helpers'
 import { LogOut, Users, Repeat, MessageSquare, Gift, Search, Download, CheckCircle, Trash2 } from 'lucide-react'
 import { format } from 'date-fns'
@@ -8,6 +8,27 @@ import clsx from 'clsx'
 
 interface ConfirmedWinner extends Participant {
   confirmedLotteryName: string
+}
+
+function ProgressBar({ current, total, label }: { current: number, total: number | null, label: string }) {
+  const percent = total ? Math.min(100, Math.round((current / total) * 100)) : 0
+  
+  return (
+    <div className="w-full mt-2">
+      <div className="flex justify-between text-xs mb-1 text-gray-600">
+        <span>{label}</span>
+        <span>
+          {current} / {total !== null ? total : '?'} {total ? `(${percent}%)` : ''}
+        </span>
+      </div>
+      <div className="w-full bg-gray-200 rounded-full h-2.5 overflow-hidden">
+        <div 
+          className="bg-blue-600 h-2.5 rounded-full transition-all duration-300 ease-out" 
+          style={{ width: `${percent}%` }}
+        ></div>
+      </div>
+    </div>
+  )
 }
 
 export default function Dashboard() {
@@ -24,6 +45,13 @@ export default function Dashboard() {
   const [isFetchingFollowers, setIsFetchingFollowers] = useState(false)
   const [statusMessage, setStatusMessage] = useState('')
   
+  // Progress
+  const [totalInteractions, setTotalInteractions] = useState<number | null>(null)
+  const [fetchedInteractions, setFetchedInteractions] = useState(0)
+  
+  const [totalFollowers, setTotalFollowers] = useState<number | null>(null)
+  const [fetchedFollowers, setFetchedFollowers] = useState(0)
+
   // Data
   const [interactions, setInteractions] = useState<Participant[]>([])
   const [followers, setFollowers] = useState<Set<string>>(new Set())
@@ -72,6 +100,8 @@ export default function Dashboard() {
     }
 
     setIsFetchingInteractions(true)
+    setFetchedInteractions(0)
+    setTotalInteractions(null)
     setStatusMessage('Resolving post...')
 
     try {
@@ -79,13 +109,25 @@ export default function Dashboard() {
       if (!authorDid) throw new Error('Could not resolve author')
       const postUri = `at://${authorDid}/app.bsky.feed.post/${urlData.rkey}`
 
+      // Get Counts first
+      const counts = await getPostCounts(agent, postUri)
+      const estimatedTotal = counts ? counts.repostCount + (includeQuotes ? counts.quoteCount : 0) : null
+      setTotalInteractions(estimatedTotal)
+
       setStatusMessage('Fetching Reposters...')
-      const reposters = await fetchAllReposters(agent, postUri, (c) => setStatusMessage(`Fetching Reposters... (${c})`))
+      const reposters = await fetchAllReposters(agent, postUri, (c) => {
+        setFetchedInteractions(c)
+        setStatusMessage(`Fetching Reposters... (${c})`)
+      })
       
       let quotes: Participant[] = []
       if (includeQuotes) {
         setStatusMessage('Fetching Quotes...')
-        quotes = await fetchAllQuotes(agent, postUri, (c) => setStatusMessage(`Fetching Quotes... (${c})`))
+        const currentBase = reposters.length
+        quotes = await fetchAllQuotes(agent, postUri, (c) => {
+          setFetchedInteractions(currentBase + c)
+          setStatusMessage(`Fetching Quotes... (${c})`)
+        })
       }
 
       setInteractions([...reposters, ...quotes])
@@ -101,9 +143,19 @@ export default function Dashboard() {
   const handleFetchFollowers = async () => {
     if (!agent || !userDid) return
     setIsFetchingFollowers(true)
+    setFetchedFollowers(0)
+    setTotalFollowers(null)
     setStatusMessage('Fetching Your Followers...')
+    
     try {
-      const myFollowers = await fetchFollowers(agent, userDid, (c) => setStatusMessage(`Fetching Your Followers... (${c})`))
+      // Get Count first
+      const count = await getProfileFollowerCount(agent, userDid)
+      setTotalFollowers(count)
+
+      const myFollowers = await fetchFollowers(agent, userDid, (c) => {
+        setFetchedFollowers(c)
+        setStatusMessage(`Fetching Your Followers... (${c})`)
+      })
       setFollowers(myFollowers)
       setStatusMessage(`Fetched ${myFollowers.size} followers.`)
     } catch (err) {
@@ -164,6 +216,7 @@ export default function Dashboard() {
     link.click()
     document.body.removeChild(link)
   }
+
   return (
     <div className="min-h-screen bg-gray-50 text-gray-900 font-sans">
       {/* Header */}
@@ -208,6 +261,8 @@ export default function Dashboard() {
                     {isFetchingInteractions ? 'Fetching...' : 'Fetch Reposts'}
                   </button>
                 </div>
+                {/* Progress Bar for Interactions */}
+                {isFetchingInteractions && <ProgressBar current={fetchedInteractions} total={totalInteractions} label="Interactions Progress" />}
               </div>
               
               <div className="flex items-center space-x-4">
@@ -246,6 +301,8 @@ export default function Dashboard() {
                     {isFetchingFollowers ? 'Fetching...' : 'Fetch Followers'}
                   </button>
                 </div>
+                {/* Progress Bar for Followers */}
+                {isFetchingFollowers && <ProgressBar current={fetchedFollowers} total={totalFollowers} label="Followers Progress" />}
               </div>
             </div>
 
@@ -253,8 +310,8 @@ export default function Dashboard() {
               <div className="bg-blue-50 p-4 rounded-lg text-sm text-blue-800">
                 <p className="font-medium mb-1">Status:</p>
                 <ul className="list-disc list-inside space-y-1">
-                  <li>Interactions Loaded: {interactions.length}</li>
-                  <li>Followers Loaded: {followers.size}</li>
+                  <li>Interactions Loaded: {interactions.length} {totalInteractions ? `(Total ~${totalInteractions})` : ''}</li>
+                  <li>Followers Loaded: {followers.size} {totalFollowers ? `(Total ~${totalFollowers})` : ''}</li>
                   <li><strong>Qualified Participants: {participants.length}</strong></li>
                   <li>Available to Pick: {pickableParticipants.length}</li>
                 </ul>

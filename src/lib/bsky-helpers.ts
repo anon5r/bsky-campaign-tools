@@ -129,6 +129,33 @@ export async function fetchAllQuotes(
   return participants
 }
 
+export async function getPostCounts(agent: Agent, uri: string): Promise<{ repostCount: number; quoteCount: number } | null> {
+  try {
+    const res = await agent.app.bsky.feed.getPosts({ uris: [uri] })
+    if (res.data.posts.length === 0) return null
+    
+    const post = res.data.posts[0]
+    return {
+      repostCount: post.repostCount || 0,
+      // @ts-ignore - quoteCount might be missing in some types versions but exists in API
+      quoteCount: post.quoteCount || 0
+    }
+  } catch (e) {
+    console.error('Failed to fetch post counts', e)
+    return null
+  }
+}
+
+export async function getProfileFollowerCount(agent: Agent, actor: string): Promise<number | null> {
+  try {
+    const res = await agent.getProfile({ actor })
+    return res.data.followersCount || 0
+  } catch (e) {
+    console.error('Failed to fetch profile follower count', e)
+    return null
+  }
+}
+
 export async function fetchFollowers(
   agent: Agent,
   actor: string,
@@ -138,10 +165,13 @@ export async function fetchFollowers(
   const followerDids = new Set<string>()
   
   // Retry configuration
-  const MAX_RETRIES = 3
-  const DELAY_MS = 300
+  const MAX_RETRIES = 5
+  // Increase delay to avoid rate limits more aggressively
+  const DELAY_MS = 800 
 
   const wait = (ms: number) => new Promise(resolve => setTimeout(resolve, ms))
+
+  let pageCount = 0
 
   do {
     let retries = MAX_RETRIES
@@ -149,10 +179,15 @@ export async function fetchFollowers(
 
     while (retries > 0 && !success) {
       try {
-        // Use explicit XRPC call for clarity
+        pageCount++
+        console.log(`Fetching followers page ${pageCount}... (Current total: ${followerDids.size})`)
+        
         const res = await agent.app.bsky.graph.getFollowers({ actor, cursor, limit: 100 })
         
-        for (const follower of res.data.followers) {
+        const newFollowers = res.data.followers
+        console.log(`Page ${pageCount}: Got ${newFollowers.length} followers. Next cursor: ${res.data.cursor?.slice(0, 20)}...`)
+
+        for (const follower of newFollowers) {
           followerDids.add(follower.did)
         }
         
@@ -161,22 +196,22 @@ export async function fetchFollowers(
         
         if (onProgress) onProgress(followerDids.size)
         
-        // Small delay to be nice to the API
+        // Wait to be gentle to the API
         await wait(DELAY_MS)
 
       } catch (e) {
-        console.warn(`Fetch followers failed (cursor: ${cursor}), retrying... ${retries} left`, e)
+        console.error(`Fetch followers failed at page ${pageCount} (cursor: ${cursor}), retrying... ${retries} retries left.`, e)
         retries--
         if (retries === 0) {
-          console.error('Max retries reached for followers fetch.')
-          // Option: Throw error to alert user, or break to return partial results.
-          // Throwing ensures the user knows it's incomplete.
-          throw new Error('Failed to fetch all followers due to network or API errors.')
+          console.error('Max retries reached for followers fetch. Aborting.')
+          throw new Error(`Failed to fetch followers at page ${pageCount}. Please check console for details.`)
         }
-        await wait(1000) // Longer wait on error
+        // Exponential backoff or longer wait on error
+        await wait(2000 + (MAX_RETRIES - retries) * 1000)
       }
     }
   } while (cursor)
 
+  console.log(`Finished fetching followers. Total unique DIDs: ${followerDids.size}`)
   return followerDids
 }

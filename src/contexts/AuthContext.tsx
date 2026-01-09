@@ -22,10 +22,18 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [isLoading, setIsLoading] = useState(true)
 
   useEffect(() => {
+    let mounted = true
+    const timer = setTimeout(() => {
+      if (mounted && isLoading) {
+        console.warn('Auth init timed out')
+        setIsLoading(false)
+      }
+    }, 5000) // 5 seconds timeout
+
     async function initAuth() {
       try {
         const result = await client.init()
-        if (result) {
+        if (mounted && result) {
           // @ts-ignore - Session compatibility
           const newAgent = new Agent(result.session)
           setAgent(newAgent)
@@ -38,10 +46,18 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       } catch (error) {
         console.error('Auth initialization failed', error)
       } finally {
-        setIsLoading(false)
+        if (mounted) {
+          setIsLoading(false)
+          clearTimeout(timer)
+        }
       }
     }
     initAuth()
+
+    return () => {
+      mounted = false
+      clearTimeout(timer)
+    }
   }, [])
 
   const login = useCallback(async (handle: string) => {
