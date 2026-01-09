@@ -1,8 +1,8 @@
-import { useEffect, useState } from 'react'
-import { useAuth } from '../contexts/AuthContext'
-import { useNavigate } from 'react-router-dom'
-import { PartyPopper, History, X } from 'lucide-react'
-import { getLoginHistory, clearLoginHistory } from '../lib/login-history'
+import {useEffect, useState} from 'react'
+import {useAuth} from '../contexts/AuthContext'
+import {useNavigate} from 'react-router-dom'
+import {History, PartyPopper, X} from 'lucide-react'
+import {clearLoginHistory, getLoginHistory} from '../lib/login-history'
 
 export default function Home() {
   const { login, isAuthenticated } = useAuth()
@@ -49,10 +49,18 @@ export default function Home() {
           <PartyPopper className="w-20 h-20 text-blue-500" />
         </div>
         <h1 className="text-4xl font-bold">Bluesky Campaign Tools</h1>
-        <p className="text-gray-400">
-          Run contests, giveaways, and campaigns on Bluesky with ease.
-        </p>
-        
+
+        <div className="text-gray-300 text-sm space-y-4 bg-gray-800/50 p-6 rounded-lg border border-gray-700">
+          <h2 className="text-lg font-semibold text-blue-400">Blueskyでのキャンペーン管理を強力にサポート</h2>
+          <ul className="list-disc list-inside space-y-2 text-left">
+            <li>🎯 <strong>リポスト・引用抽出:</strong> 特定の投稿を拡散したユーザーを全件取得</li>
+            <li>👥 <strong>フォロワー限定:</strong> フォロワーの中から参加者をフィルタリング</li>
+            <li>⏱ <strong>日時フィルタ:</strong> キャンペーン締め切り日時で正確に抽出</li>
+            <li>🎲 <strong>抽選機能:</strong> ランダムピックアップ＆重複なしの当選確定</li>
+            <li>📂 <strong>CSV出力:</strong> 当選者リストをExcelなどで管理可能な形式でダウンロード</li>
+          </ul>
+        </div>
+
         <div className="bg-gray-800 p-6 rounded-xl shadow-lg text-left space-y-4">
           <div className="relative">
             <label className="block text-sm font-medium text-gray-300 mb-1">Bluesky Handle</label>

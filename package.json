@@ -6,7 +6,8 @@
   "scripts": {
     "dev": "vite",
     "generate-metadata": "node scripts/generate-metadata.js",
-    "build": "pnpm generate-metadata && tsc -b && vite build",
+    "post-build": "node scripts/post-build.js",
+    "build": "pnpm generate-metadata && tsc -b && vite build && pnpm post-build",
     "lint": "eslint .",
     "preview": "vite preview"
   },
