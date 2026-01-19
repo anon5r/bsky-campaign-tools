@@ -24,6 +24,7 @@ export function parsePostUrl(url: string): { handle: string; rkey: string } | nu
 }
 
 export async function resolveDid(agent: Agent, handle: string): Promise<string | null> {
+  if (handle.startsWith('did:')) return handle
   try {
     const res = await agent.resolveHandle({ handle })
     return res.data.did

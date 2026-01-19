@@ -263,47 +263,15 @@ export default function Dashboard() {
           
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <div className="space-y-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">{t.targetPostLabel}</label>
-                <div className="flex space-x-2">
-                  <input 
-                    type="text"
-                    placeholder={t.targetPostPlaceholder}
-                    className="flex-1 rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 p-2 border"
-                    value={postUrl}
-                    onChange={e => setPostUrl(e.target.value)}
-                  />
-                  <button
-                    onClick={handleFetchInteractions}
-                    disabled={isFetchingInteractions || !postUrl}
-                    className="bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700 disabled:opacity-50 text-sm whitespace-nowrap"
-                  >
-                    {isFetchingInteractions ? t.fetching : t.fetchReposts}
-                  </button>
-                </div>
-                {/* Progress Bar for Interactions */}
-                {isFetchingInteractions &&
-                  <ProgressBar current={fetchedInteractions} total={totalInteractions} label={t.interactionsProgress}/>}
-              </div>
-              
-              <div className="flex items-center space-x-4">
-                 <label className="flex items-center space-x-2 cursor-pointer">
-                   <input 
-                    type="checkbox" 
-                    className="rounded text-blue-600 focus:ring-blue-500 h-4 w-4"
-                    checked={includeQuotes}
-                    onChange={e => setIncludeQuotes(e.target.checked)}
-                   />
-                   <span className="text-sm text-gray-700">{t.includeQuotes}</span>
-                 </label>
-              </div>
 
-              <div className="pt-4 border-t border-gray-200">
-                <div className="flex items-center justify-between">
+              {/* Step 1: Followers */}
+              <div>
+                <div className="flex items-center justify-between mb-2">
                   <div>
-                    <span className="text-sm font-medium text-gray-700">{t.followersData}</span>
-                    <p
-                      className="text-xs text-gray-500">{followers.size > 0 ? t.loaded(followers.size) : t.notLoaded}</p>
+                    <span className="text-sm font-medium text-gray-700">1. {t.followersData}</span>
+                    <p className="text-xs text-gray-500">
+                      {followers.size > 0 ? t.loaded(followers.size) : t.notLoaded}
+                    </p>
                   </div>
                   <button
                     onClick={handleFetchFollowers}
@@ -317,6 +285,48 @@ export default function Dashboard() {
                 {isFetchingFollowers &&
                   <ProgressBar current={fetchedFollowers} total={totalFollowers} label={t.followersProgress}/>}
               </div>
+
+              {/* Step 2: Repost URL */}
+              <div className="pt-4 border-t border-gray-200">
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  2. {t.targetPostLabel}
+                </label>
+                <div className="flex space-x-2">
+                  <input 
+                    type="text"
+                    placeholder={t.targetPostPlaceholder}
+                    className="flex-1 rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 p-2 border disabled:bg-gray-100 disabled:text-gray-400"
+                    value={postUrl}
+                    onChange={e => setPostUrl(e.target.value)}
+                    disabled={followers.size === 0}
+                  />
+                  <button
+                    onClick={handleFetchInteractions}
+                    disabled={isFetchingInteractions || !postUrl || followers.size === 0}
+                    className="bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700 disabled:opacity-50 text-sm whitespace-nowrap"
+                  >
+                    {isFetchingInteractions ? t.fetching : t.fetchReposts}
+                  </button>
+                </div>
+                {/* Progress Bar for Interactions */}
+                {isFetchingInteractions &&
+                  <ProgressBar current={fetchedInteractions} total={totalInteractions} label={t.interactionsProgress}/>}
+
+                <div className="flex items-center space-x-4 mt-2">
+                  <label
+                    className={clsx("flex items-center space-x-2", followers.size === 0 ? "cursor-not-allowed opacity-50" : "cursor-pointer")}>
+                    <input
+                      type="checkbox"
+                      className="rounded text-blue-600 focus:ring-blue-500 h-4 w-4"
+                      checked={includeQuotes}
+                      onChange={e => setIncludeQuotes(e.target.checked)}
+                      disabled={followers.size === 0}
+                    />
+                    <span className="text-sm text-gray-700">{t.includeQuotes}</span>
+                  </label>
+                </div>
+              </div>
+
             </div>
 
             <div className="flex flex-col justify-between">
@@ -329,6 +339,11 @@ export default function Dashboard() {
                   <li>{t.availableToPick(pickableParticipants.length)}</li>
                 </ul>
                 {statusMessage && <p className="mt-2 text-gray-600 animate-pulse">{statusMessage}</p>}
+                {(!isFetchingFollowers && followers.size > 0 && totalFollowers !== null && totalFollowers > followers.size) && (
+                  <p className="mt-2 text-xs text-amber-700 bg-amber-50 p-2 rounded border border-amber-200">
+                    {t.followerCountDiscrepancy}
+                  </p>
+                )}
               </div>
               <Disclaimer className="mt-4"/>
             </div>
