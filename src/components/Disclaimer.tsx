@@ -26,6 +26,7 @@ export function Disclaimer({className, variant = 'light'}: DisclaimerProps) {
         {t.disclaimerTitle}
       </h3>
       <ul className="list-disc list-inside space-y-1">
+        <li>{t.freeToUse}</li>
         <li>{t.simpleApp}</li>
         <li>{t.apiUsage}</li>
         <li>{t.noMultiAccount}</li>

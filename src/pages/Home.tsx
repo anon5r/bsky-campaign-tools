@@ -5,6 +5,7 @@ import {Globe, History, PartyPopper, X} from 'lucide-react'
 import {clearLoginHistory, getLoginHistory} from '../lib/login-history'
 import {useLanguage} from '../contexts/LanguageContext'
 import {Disclaimer} from '../components/Disclaimer'
+import {Footer} from "../components/Footer.tsx";
 
 export default function Home() {
   const { login, isAuthenticated } = useAuth()
@@ -133,7 +134,7 @@ export default function Home() {
         </div>
 
         <Disclaimer variant="dark"/>
-
+        <Footer/>
       </div>
     </div>
   )

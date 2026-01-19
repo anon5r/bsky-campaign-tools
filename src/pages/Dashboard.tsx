@@ -15,6 +15,7 @@ import {
 import {CheckCircle, Download, Gift, Globe, LogOut, MessageSquare, Repeat, Search, Trash2, Users} from 'lucide-react'
 import {format} from 'date-fns'
 import clsx from 'clsx'
+import {Footer} from "../components/Footer.tsx";
 
 interface ConfirmedWinner extends Participant {
   confirmedLotteryName: string
@@ -502,6 +503,8 @@ export default function Dashboard() {
             </div>
           </div>
         )}
+        <Disclaimer variant="dark"/>
+        <Footer/>
       </main>
     </div>
   )

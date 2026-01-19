@@ -59,6 +59,7 @@ export const translations = {
     csvDate: 'Date',
 
     // Disclaimer
+    freeToUse: 'Anyone can use this for free.',
     disclaimerTitle: 'Important Notes & Disclaimer',
     simpleApp: 'This application is a simple tool.',
     apiUsage: 'Heavy usage may consume significant Bluesky API rate limits.',
@@ -66,6 +67,11 @@ export const translations = {
     disclaimerList1: 'Provided for informational purposes only. No guarantee of accuracy or completeness.',
     disclaimerList2: 'Use at your own risk. We are not liable for any damages.',
     disclaimerList3: 'Subject to change or discontinuation without notice.',
+    footer: {
+      credit: {
+        developedBy: 'Developed by'
+      }
+    }
   },
   ja: {
     appTitle: 'キャンペーンツール',
@@ -117,35 +123,27 @@ export const translations = {
     noQualified: '抽選可能な参加者がいません。',
 
     // CSV Headers
-
     csvLotteryName: '抽選名',
-
     csvDid: 'DID',
-
     csvHandle: 'ハンドル',
-
     csvDisplayName: '表示名',
-
     csvType: 'タイプ',
-
     csvDate: '日時',
 
-
     // Disclaimer
-
     disclaimerTitle: '注意事項・免責事項',
-
-    simpleApp: 'このアプリケーションは簡易的なツールです。',
-
+    freeToUse: '誰でも自由に無料で利用いただけます。',
+    simpleApp: 'このアプリケーションは簡易的な抽選ツールです。',
     apiUsage: 'アプリケーションの利用によりBlueskyのAPIを多く消費する可能性があります。',
-
     noMultiAccount: '同一人物による複数アカウントによる応募は考慮（検出・除外）されません。',
-
     disclaimerList1: '本アプリは情報提供のみを目的としており、正確性・完全性を保証しません。',
-
     disclaimerList2: '利用は自己責任で行ってください。本アプリの利用による損害について一切の責任を負いません。',
-
     disclaimerList3: '本アプリは予告なく変更・中止される場合があります。',
+    footer: {
+      credit: {
+        developedBy: '作った人・問い合わせ先'
+      }
+    }
 
   }
 
