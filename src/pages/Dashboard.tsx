@@ -503,7 +503,6 @@ export default function Dashboard() {
             </div>
           </div>
         )}
-        <Disclaimer variant="dark"/>
         <Footer/>
       </main>
     </div>
