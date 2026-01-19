@@ -10,7 +10,12 @@ interface LanguageContextType {
 const LanguageContext = createContext<LanguageContextType | undefined>(undefined);
 
 export function LanguageProvider({children}: { children: ReactNode }) {
-  const [language, setLanguage] = useState<Language>('en'); // Default to English
+  const [language, setLanguage] = useState<Language>(() => {
+    if (typeof window !== 'undefined' && navigator.language.startsWith('ja')) {
+      return 'ja';
+    }
+    return 'en';
+  });
 
   const value = {
     language,
