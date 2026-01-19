@@ -10,7 +10,7 @@ import {Footer} from "../components/Footer.tsx";
 export default function Home() {
   const { login, isAuthenticated } = useAuth()
   const navigate = useNavigate()
-  const {language, setLanguage} = useLanguage()
+  const {language, setLanguage, t} = useLanguage()
   
   const [handle, setHandle] = useState('')
   const [history, setHistory] = useState<string[]>([])
@@ -31,7 +31,7 @@ export default function Home() {
     try {
       await login(handle.trim())
     } catch (err) {
-      alert('Login failed. Please check your handle and try again.')
+      alert(t.loginFailed)
     }
   }
 
@@ -64,17 +64,17 @@ export default function Home() {
         <div className="flex justify-center">
           <PartyPopper className="w-20 h-20 text-blue-500" />
         </div>
-        <h1 className="text-4xl font-bold">Bluesky Campaign Tools</h1>
+        <h1 className="text-4xl font-bold">{t.homeTitle}</h1>
 
         <div className="bg-gray-800 p-6 rounded-xl shadow-lg text-left space-y-4">
           <div className="relative">
-            <label className="block text-sm font-medium text-gray-300 mb-1">Bluesky Handle</label>
+            <label className="block text-sm font-medium text-gray-300 mb-1">{t.bskyHandle}</label>
             <div className="relative">
               <input
                 type="text"
                 value={handle}
                 onChange={(e) => setHandle(e.target.value)}
-                placeholder="user.bsky.social"
+                placeholder={t.handlePlaceholder}
                 className="w-full bg-gray-700 border border-gray-600 rounded-lg p-3 text-white placeholder-gray-500 focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none"
                 onKeyDown={(e) => e.key === 'Enter' && handleLogin()}
               />
@@ -92,9 +92,9 @@ export default function Home() {
             {showHistory && history.length > 0 && (
               <div className="absolute z-20 mt-1 w-full bg-gray-700 rounded-lg border border-gray-600 overflow-hidden shadow-xl animate-in fade-in zoom-in duration-200">
                 <div className="flex justify-between items-center p-2 border-b border-gray-600 bg-gray-800 text-xs text-gray-400">
-                  <span>Recent Logins</span>
+                  <span>{t.recentLogins}</span>
                   <button onClick={handleClearHistory} className="flex items-center hover:text-red-400 px-1">
-                    <X className="w-3 h-3 mr-1" /> Clear
+                    <X className="w-3 h-3 mr-1"/> {t.clearHistory}
                   </button>
                 </div>
                 <ul className="max-h-48 overflow-y-auto">
@@ -118,18 +118,18 @@ export default function Home() {
             disabled={!handle}
             className="w-full py-3 px-6 rounded-lg bg-blue-600 hover:bg-blue-700 text-white font-semibold transition-colors shadow-lg disabled:opacity-50 disabled:cursor-not-allowed"
           >
-            Sign in
+            {t.signIn}
           </button>
         </div>
 
 
         <div className="text-gray-300 text-sm space-y-4 bg-gray-800/50 p-6 rounded-lg border border-gray-700">
-          <h2 className="text-lg font-semibold text-blue-400">Blueskyでのキャンペーン管理をサポート</h2>
+          <h2 className="text-lg font-semibold text-blue-400">{t.featuresTitle}</h2>
           <ul className="list-disc list-inside space-y-2 text-left">
-            <li>🎯 <strong>リポスト・引用抽出:</strong> 特定の投稿を拡散したユーザーを全件取得</li>
-            <li>👥 <strong>フォロワー限定:</strong> フォロワーの中から参加者をフィルタリング</li>
-            <li>🎲 <strong>抽選機能:</strong> ランダムピックアップ＆重複なしの当選確定</li>
-            <li>📂 <strong>CSV出力:</strong> 当選者リストをExcelなどで管理可能な形式でダウンロード</li>
+            <li>{t.feature1}</li>
+            <li>{t.feature2}</li>
+            <li>{t.feature3}</li>
+            <li>{t.feature4}</li>
           </ul>
         </div>
 
