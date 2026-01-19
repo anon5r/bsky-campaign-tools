@@ -1,9 +1,17 @@
-import { useState, useMemo } from 'react'
-import { useAuth } from '../contexts/AuthContext'
-import { parsePostUrl, resolveDid, fetchAllReposters, fetchAllQuotes, fetchFollowers, getPostCounts, getProfileFollowerCount } from '../lib/bsky-helpers'
-import type { Participant } from '../lib/bsky-helpers'
-import { LogOut, Users, Repeat, MessageSquare, Gift, Search, Download, CheckCircle, Trash2 } from 'lucide-react'
-import { format } from 'date-fns'
+import {useMemo, useState} from 'react'
+import {useAuth} from '../contexts/AuthContext'
+import type {Participant} from '../lib/bsky-helpers'
+import {
+  fetchAllQuotes,
+  fetchAllReposters,
+  fetchFollowers,
+  getPostCounts,
+  getProfileFollowerCount,
+  parsePostUrl,
+  resolveDid
+} from '../lib/bsky-helpers'
+import {CheckCircle, Download, Gift, LogOut, MessageSquare, Repeat, Search, Trash2, Users} from 'lucide-react'
+import {format} from 'date-fns'
 import clsx from 'clsx'
 
 interface ConfirmedWinner extends Participant {
@@ -37,7 +45,6 @@ export default function Dashboard() {
   // Inputs
   const [postUrl, setPostUrl] = useState('')
   const [includeQuotes, setIncludeQuotes] = useState(true)
-  const [untilDate, setUntilDate] = useState('')
   const [lotteryName, setLotteryName] = useState('Campaign')
   
   // State
@@ -70,19 +77,12 @@ export default function Dashboard() {
       // Must be following me
       if (!followers.has(p.did)) return false
       
-      // Time filter
-      if (untilDate) {
-        if (p.type === 'quote' && p.repostedAt) {
-          return new Date(p.repostedAt) <= new Date(untilDate)
-        }
-        return true
-      }
       return true
     })
 
     // Remove duplicates
     return Array.from(new Map(valid.map(item => [item.did, item])).values())
-  }, [interactions, followers, untilDate])
+  }, [interactions, followers])
 
   // Filter out confirmed winners from the pool available for picking
   const pickableParticipants = useMemo(() => {
@@ -275,16 +275,6 @@ export default function Dashboard() {
                    />
                    <span className="text-sm text-gray-700">Include Quotes</span>
                  </label>
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Until Date (Optional)</label>
-                <input 
-                  type="datetime-local" 
-                  className="w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 p-2 border"
-                  value={untilDate}
-                  onChange={e => setUntilDate(e.target.value)}
-                />
               </div>
 
               <div className="pt-4 border-t border-gray-200">

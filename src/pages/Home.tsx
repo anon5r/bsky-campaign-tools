@@ -108,7 +108,7 @@ export default function Home() {
 
 
         <div className="text-gray-300 text-sm space-y-4 bg-gray-800/50 p-6 rounded-lg border border-gray-700">
-          <h2 className="text-lg font-semibold text-blue-400">Blueskyでのキャンペーン管理を強力にサポート</h2>
+          <h2 className="text-lg font-semibold text-blue-400">Blueskyでのキャンペーン管理をサポート</h2>
           <ul className="list-disc list-inside space-y-2 text-left">
             <li>🎯 <strong>リポスト・引用抽出:</strong> 特定の投稿を拡散したユーザーを全件取得</li>
             <li>👥 <strong>フォロワー限定:</strong> フォロワーの中から参加者をフィルタリング</li>
