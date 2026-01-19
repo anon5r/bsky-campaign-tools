@@ -1,12 +1,15 @@
 import {useEffect, useState} from 'react'
 import {useAuth} from '../contexts/AuthContext'
 import {useNavigate} from 'react-router-dom'
-import {History, PartyPopper, X} from 'lucide-react'
+import {Globe, History, PartyPopper, X} from 'lucide-react'
 import {clearLoginHistory, getLoginHistory} from '../lib/login-history'
+import {useLanguage} from '../contexts/LanguageContext'
+import {Disclaimer} from '../components/Disclaimer'
 
 export default function Home() {
   const { login, isAuthenticated } = useAuth()
   const navigate = useNavigate()
+  const {language, setLanguage} = useLanguage()
   
   const [handle, setHandle] = useState('')
   const [history, setHistory] = useState<string[]>([])
@@ -42,8 +45,20 @@ export default function Home() {
     setShowHistory(false)
   }
 
+  const toggleLanguage = () => {
+    setLanguage(language === 'en' ? 'ja' : 'en')
+  }
+
   return (
-    <div className="min-h-screen bg-gray-900 text-white flex flex-col items-center justify-center p-4">
+    <div className="min-h-screen bg-gray-900 text-white flex flex-col items-center justify-center p-4 relative">
+      <button
+        onClick={toggleLanguage}
+        className="absolute top-4 right-4 p-2 text-gray-400 hover:text-white transition-colors flex items-center space-x-1 bg-gray-800/50 rounded-full px-3"
+      >
+        <Globe className="w-4 h-4"/>
+        <span className="text-xs font-medium uppercase">{language}</span>
+      </button>
+
       <div className="max-w-md w-full text-center space-y-8">
         <div className="flex justify-center">
           <PartyPopper className="w-20 h-20 text-blue-500" />
@@ -116,6 +131,8 @@ export default function Home() {
             <li>📂 <strong>CSV出力:</strong> 当選者リストをExcelなどで管理可能な形式でダウンロード</li>
           </ul>
         </div>
+
+        <Disclaimer variant="dark"/>
 
       </div>
     </div>

@@ -1,6 +1,7 @@
 import React from 'react'
-import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
-import { AuthProvider, useAuth } from './contexts/AuthContext'
+import {BrowserRouter, Navigate, Route, Routes} from 'react-router-dom'
+import {AuthProvider, useAuth} from './contexts/AuthContext'
+import {LanguageProvider} from './contexts/LanguageContext'
 import Home from './pages/Home'
 import Dashboard from './pages/Dashboard'
 
@@ -39,9 +40,11 @@ function AppRoutes() {
 function App() {
   return (
     <BrowserRouter>
-      <AuthProvider>
-        <AppRoutes />
-      </AuthProvider>
+      <LanguageProvider>
+        <AuthProvider>
+          <AppRoutes/>
+        </AuthProvider>
+      </LanguageProvider>
     </BrowserRouter>
   )
 }

@@ -1,5 +1,7 @@
 import {useMemo, useState} from 'react'
 import {useAuth} from '../contexts/AuthContext'
+import {useLanguage} from '../contexts/LanguageContext'
+import {Disclaimer} from '../components/Disclaimer'
 import type {Participant} from '../lib/bsky-helpers'
 import {
   fetchAllQuotes,
@@ -10,7 +12,7 @@ import {
   parsePostUrl,
   resolveDid
 } from '../lib/bsky-helpers'
-import {CheckCircle, Download, Gift, LogOut, MessageSquare, Repeat, Search, Trash2, Users} from 'lucide-react'
+import {CheckCircle, Download, Gift, Globe, LogOut, MessageSquare, Repeat, Search, Trash2, Users} from 'lucide-react'
 import {format} from 'date-fns'
 import clsx from 'clsx'
 
@@ -30,8 +32,8 @@ function ProgressBar({ current, total, label }: { current: number, total: number
         </span>
       </div>
       <div className="w-full bg-gray-200 rounded-full h-2.5 overflow-hidden">
-        <div 
-          className="bg-blue-600 h-2.5 rounded-full transition-all duration-300 ease-out" 
+        <div
+          className="bg-blue-600 h-2.5 rounded-full transition-all duration-300 ease-out"
           style={{ width: `${percent}%` }}
         ></div>
       </div>
@@ -41,6 +43,7 @@ function ProgressBar({ current, total, label }: { current: number, total: number
 
 export default function Dashboard() {
   const { agent, userDid, userHandle, logout } = useAuth()
+  const {t, language, setLanguage} = useLanguage()
   
   // Inputs
   const [postUrl, setPostUrl] = useState('')
@@ -95,14 +98,14 @@ export default function Dashboard() {
     if (!agent) return
     const urlData = parsePostUrl(postUrl)
     if (!urlData) {
-      alert('Invalid Post URL. Please use a valid Bluesky post link.')
+      alert(t.invalidUrl)
       return
     }
 
     setIsFetchingInteractions(true)
     setFetchedInteractions(0)
     setTotalInteractions(null)
-    setStatusMessage('Resolving post...')
+    setStatusMessage(t.resolvingPost)
 
     try {
       const authorDid = await resolveDid(agent, urlData.handle)
@@ -114,27 +117,27 @@ export default function Dashboard() {
       const estimatedTotal = counts ? counts.repostCount + (includeQuotes ? counts.quoteCount : 0) : null
       setTotalInteractions(estimatedTotal)
 
-      setStatusMessage('Fetching Reposters...')
+      setStatusMessage(t.fetchingReposters(0))
       const reposters = await fetchAllReposters(agent, postUri, (c) => {
         setFetchedInteractions(c)
-        setStatusMessage(`Fetching Reposters... (${c})`)
+        setStatusMessage(t.fetchingReposters(c))
       })
       
       let quotes: Participant[] = []
       if (includeQuotes) {
-        setStatusMessage('Fetching Quotes...')
+        setStatusMessage(t.fetchingQuotes(0))
         const currentBase = reposters.length
         quotes = await fetchAllQuotes(agent, postUri, (c) => {
           setFetchedInteractions(currentBase + c)
-          setStatusMessage(`Fetching Quotes... (${c})`)
+          setStatusMessage(t.fetchingQuotes(c))
         })
       }
 
       setInteractions([...reposters, ...quotes])
-      setStatusMessage(`Fetched ${reposters.length + quotes.length} interactions.`)
+      setStatusMessage(t.fetchedInteractions(reposters.length + quotes.length))
     } catch (err) {
       console.error(err)
-      alert('Error fetching interactions.')
+      alert(t.fetchError)
     } finally {
       setIsFetchingInteractions(false)
     }
@@ -145,7 +148,7 @@ export default function Dashboard() {
     setIsFetchingFollowers(true)
     setFetchedFollowers(0)
     setTotalFollowers(null)
-    setStatusMessage('Fetching Your Followers...')
+    setStatusMessage(t.fetchingFollowers(0))
     
     try {
       // Get Count first
@@ -154,13 +157,13 @@ export default function Dashboard() {
 
       const myFollowers = await fetchFollowers(agent, userDid, (c) => {
         setFetchedFollowers(c)
-        setStatusMessage(`Fetching Your Followers... (${c})`)
+        setStatusMessage(t.fetchingFollowers(c))
       })
       setFollowers(myFollowers)
-      setStatusMessage(`Fetched ${myFollowers.size} followers.`)
+      setStatusMessage(t.fetchedFollowers(myFollowers.size))
     } catch (err) {
       console.error(err)
-      alert('Error fetching followers.')
+      alert(t.fetchFollowersError)
     } finally {
       setIsFetchingFollowers(false)
     }
@@ -168,7 +171,7 @@ export default function Dashboard() {
 
   const handlePickWinners = () => {
     if (pickableParticipants.length === 0) {
-      alert('No qualified participants available to pick from.')
+      alert(t.noQualified)
       return
     }
     const count = Math.min(winnerCount, pickableParticipants.length)
@@ -189,7 +192,7 @@ export default function Dashboard() {
     if (confirmedWinners.length === 0) return
     
     // CSV Header
-    const headers = ['Lottery Name', 'DID', 'Handle', 'Display Name', 'Type', 'Date']
+    const headers = [t.csvLotteryName, t.csvDid, t.csvHandle, t.csvDisplayName, t.csvType, t.csvDate]
     const rows = confirmedWinners.map(w => [
       w.confirmedLotteryName,
       w.did,
@@ -217,6 +220,10 @@ export default function Dashboard() {
     document.body.removeChild(link)
   }
 
+  const toggleLanguage = () => {
+    setLanguage(language === 'en' ? 'ja' : 'en')
+  }
+
   return (
     <div className="min-h-screen bg-gray-50 text-gray-900 font-sans">
       {/* Header */}
@@ -224,11 +231,22 @@ export default function Dashboard() {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex justify-between items-center">
           <div className="flex items-center space-x-2">
             <Gift className="w-6 h-6 text-blue-600" />
-            <h1 className="text-xl font-bold text-gray-800">Campaign Tools</h1>
+            <h1 className="text-xl font-bold text-gray-800">{t.appTitle}</h1>
           </div>
           <div className="flex items-center space-x-4">
              {userHandle && <span className="text-sm font-medium text-gray-600">@{userHandle}</span>}
-            <button onClick={logout} className="p-2 text-gray-500 hover:text-red-600 transition-colors">
+
+            <button
+              onClick={toggleLanguage}
+              className="p-2 text-gray-500 hover:text-blue-600 transition-colors flex items-center space-x-1"
+              title="Switch Language"
+            >
+              <Globe className="w-5 h-5"/>
+              <span className="text-sm font-medium uppercase">{language}</span>
+            </button>
+
+            <button onClick={logout} className="p-2 text-gray-500 hover:text-red-600 transition-colors"
+                    title={t.logout}>
               <LogOut className="w-5 h-5" />
             </button>
           </div>
@@ -239,16 +257,17 @@ export default function Dashboard() {
         
         {/* Configuration Card */}
         <div className="bg-white rounded-xl shadow-lg border border-gray-100 p-6">
-          <h2 className="text-lg font-semibold mb-4 flex items-center"><Search className="w-5 h-5 mr-2 text-blue-500"/> Campaign Setup</h2>
+          <h2 className="text-lg font-semibold mb-4 flex items-center"><Search
+            className="w-5 h-5 mr-2 text-blue-500"/> {t.setupTitle}</h2>
           
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <div className="space-y-4">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Target Post URL</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1">{t.targetPostLabel}</label>
                 <div className="flex space-x-2">
                   <input 
-                    type="text" 
-                    placeholder="https://bsky.app/profile/..." 
+                    type="text"
+                    placeholder={t.targetPostPlaceholder}
                     className="flex-1 rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 p-2 border"
                     value={postUrl}
                     onChange={e => setPostUrl(e.target.value)}
@@ -258,11 +277,12 @@ export default function Dashboard() {
                     disabled={isFetchingInteractions || !postUrl}
                     className="bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700 disabled:opacity-50 text-sm whitespace-nowrap"
                   >
-                    {isFetchingInteractions ? 'Fetching...' : 'Fetch Reposts'}
+                    {isFetchingInteractions ? t.fetching : t.fetchReposts}
                   </button>
                 </div>
                 {/* Progress Bar for Interactions */}
-                {isFetchingInteractions && <ProgressBar current={fetchedInteractions} total={totalInteractions} label="Interactions Progress" />}
+                {isFetchingInteractions &&
+                  <ProgressBar current={fetchedInteractions} total={totalInteractions} label={t.interactionsProgress}/>}
               </div>
               
               <div className="flex items-center space-x-4">
@@ -273,40 +293,43 @@ export default function Dashboard() {
                     checked={includeQuotes}
                     onChange={e => setIncludeQuotes(e.target.checked)}
                    />
-                   <span className="text-sm text-gray-700">Include Quotes</span>
+                   <span className="text-sm text-gray-700">{t.includeQuotes}</span>
                  </label>
               </div>
 
               <div className="pt-4 border-t border-gray-200">
                 <div className="flex items-center justify-between">
                   <div>
-                    <span className="text-sm font-medium text-gray-700">Followers Data</span>
-                    <p className="text-xs text-gray-500">{followers.size > 0 ? `${followers.size} loaded` : 'Not loaded'}</p>
+                    <span className="text-sm font-medium text-gray-700">{t.followersData}</span>
+                    <p
+                      className="text-xs text-gray-500">{followers.size > 0 ? t.loaded(followers.size) : t.notLoaded}</p>
                   </div>
                   <button
                     onClick={handleFetchFollowers}
                     disabled={isFetchingFollowers}
                     className="bg-green-600 text-white px-4 py-2 rounded-md hover:bg-green-700 disabled:opacity-50 text-sm"
                   >
-                    {isFetchingFollowers ? 'Fetching...' : 'Fetch Followers'}
+                    {isFetchingFollowers ? t.fetching : t.fetchFollowers}
                   </button>
                 </div>
                 {/* Progress Bar for Followers */}
-                {isFetchingFollowers && <ProgressBar current={fetchedFollowers} total={totalFollowers} label="Followers Progress" />}
+                {isFetchingFollowers &&
+                  <ProgressBar current={fetchedFollowers} total={totalFollowers} label={t.followersProgress}/>}
               </div>
             </div>
 
             <div className="flex flex-col justify-between">
               <div className="bg-blue-50 p-4 rounded-lg text-sm text-blue-800">
-                <p className="font-medium mb-1">Status:</p>
+                <p className="font-medium mb-1">{t.status}</p>
                 <ul className="list-disc list-inside space-y-1">
-                  <li>Interactions Loaded: {interactions.length} {totalInteractions ? `(Total ~${totalInteractions})` : ''}</li>
-                  <li>Followers Loaded: {followers.size} {totalFollowers ? `(Total ~${totalFollowers})` : ''}</li>
-                  <li><strong>Qualified Participants: {participants.length}</strong></li>
-                  <li>Available to Pick: {pickableParticipants.length}</li>
+                  <li>{t.interactionsLoaded(interactions.length, totalInteractions)}</li>
+                  <li>{t.followersLoaded(followers.size, totalFollowers)}</li>
+                  <li><strong>{t.qualifiedParticipants(participants.length)}</strong></li>
+                  <li>{t.availableToPick(pickableParticipants.length)}</li>
                 </ul>
                 {statusMessage && <p className="mt-2 text-gray-600 animate-pulse">{statusMessage}</p>}
               </div>
+              <Disclaimer className="mt-4"/>
             </div>
           </div>
         </div>
@@ -319,19 +342,22 @@ export default function Dashboard() {
             <div className="lg:col-span-2 bg-white rounded-xl shadow-lg border border-gray-100 overflow-hidden flex flex-col h-[700px]">
               <div className="p-4 border-b border-gray-100 flex justify-between items-center bg-gray-50">
                 <h3 className="font-semibold text-gray-700 flex items-center">
-                  <Users className="w-5 h-5 mr-2 text-indigo-500"/> 
-                  Qualified Participants 
-                  <span className="ml-2 bg-indigo-100 text-indigo-700 px-2 py-0.5 rounded-full text-xs">{participants.length}</span>
+                  <Users className="w-5 h-5 mr-2 text-indigo-500"/>
+                  {t.qualifiedParticipantsHeader(participants.length)}
                 </h3>
               </div>
               <div className="overflow-y-auto flex-1 p-0">
                 <table className="min-w-full divide-y divide-gray-200">
                   <thead className="bg-gray-50 sticky top-0 z-10">
                     <tr>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">User</th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">DID</th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Type</th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Date</th>
+                      <th
+                        className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">{t.userColumn}</th>
+                      <th
+                        className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">{t.didColumn}</th>
+                      <th
+                        className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">{t.typeColumn}</th>
+                      <th
+                        className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">{t.dateColumn}</th>
                     </tr>
                   </thead>
                   <tbody className="bg-white divide-y divide-gray-200">
@@ -376,11 +402,11 @@ export default function Dashboard() {
               {/* Controls */}
               <div className="bg-white rounded-xl shadow-lg border border-gray-100 p-6 flex-shrink-0">
                  <h3 className="font-semibold text-gray-700 mb-4 flex items-center">
-                  <Gift className="w-5 h-5 mr-2 text-pink-500"/> Pick Winners
+                   <Gift className="w-5 h-5 mr-2 text-pink-500"/> {t.pickWinnersTitle}
                 </h3>
                 
                 <div className="mb-4">
-                  <label className="block text-xs font-medium text-gray-500 mb-1">Lottery Name (for CSV)</label>
+                  <label className="block text-xs font-medium text-gray-500 mb-1">{t.lotteryNameLabel}</label>
                   <input 
                     type="text" 
                     value={lotteryName} 
@@ -403,18 +429,19 @@ export default function Dashboard() {
                     disabled={pickableParticipants.length === 0}
                     className="flex-1 bg-gradient-to-r from-pink-500 to-rose-500 hover:from-pink-600 hover:to-rose-600 text-white font-semibold py-2 px-4 rounded-md shadow-md transition-all disabled:opacity-50"
                   >
-                    Pick Randomly
+                    {t.pickRandomly}
                   </button>
                 </div>
                 <p className="text-xs text-gray-500 text-center">
-                  Available to pick: {pickableParticipants.length}
+                  {t.availableToPickCount(pickableParticipants.length)}
                 </p>
               </div>
 
               {/* Current Draw (Tentative) */}
               {currentWinners.length > 0 && (
                 <div className="bg-yellow-50 rounded-xl shadow-lg border border-yellow-200 p-4 flex-shrink-0">
-                   <h3 className="font-bold text-yellow-800 mb-2 text-center text-sm uppercase tracking-wide">Tentative Winners</h3>
+                  <h3
+                    className="font-bold text-yellow-800 mb-2 text-center text-sm uppercase tracking-wide">{t.tentativeWinners}</h3>
                    <div className="space-y-2 mb-4 max-h-40 overflow-y-auto">
                      {currentWinners.map(w => (
                        <div key={w.did} className="bg-white p-2 rounded flex items-center border border-yellow-100 text-sm">
@@ -427,9 +454,10 @@ export default function Dashboard() {
                      ))}
                    </div>
                    <div className="flex space-x-2">
-                     <button onClick={() => setCurrentWinners([])} className="flex-1 py-1 text-gray-600 hover:bg-gray-200 rounded text-sm">Cancel</button>
+                     <button onClick={() => setCurrentWinners([])}
+                             className="flex-1 py-1 text-gray-600 hover:bg-gray-200 rounded text-sm">{t.cancel}</button>
                      <button onClick={handleConfirmWinners} className="flex-1 py-1 bg-yellow-500 hover:bg-yellow-600 text-white rounded font-medium text-sm flex items-center justify-center">
-                       <CheckCircle className="w-4 h-4 mr-1"/> Confirm
+                       <CheckCircle className="w-4 h-4 mr-1"/> {t.confirm}
                      </button>
                    </div>
                 </div>
@@ -439,17 +467,17 @@ export default function Dashboard() {
               <div className="bg-white rounded-xl shadow-lg border border-green-100 flex-1 flex flex-col overflow-hidden">
                 <div className="p-3 bg-green-50 border-b border-green-100 flex justify-between items-center">
                    <h3 className="font-semibold text-green-800 flex items-center text-sm">
-                    <CheckCircle className="w-4 h-4 mr-1 text-green-600"/> Confirmed ({confirmedWinners.length})
+                     <CheckCircle className="w-4 h-4 mr-1 text-green-600"/> {t.confirmed(confirmedWinners.length)}
                   </h3>
                   {confirmedWinners.length > 0 && (
                      <button onClick={handleExportCSV} className="text-xs bg-white border border-green-200 text-green-700 px-2 py-1 rounded hover:bg-green-100 flex items-center">
-                       <Download className="w-3 h-3 mr-1"/> CSV
+                       <Download className="w-3 h-3 mr-1"/> {t.csvExport}
                      </button>
                   )}
                 </div>
                 <div className="flex-1 overflow-y-auto p-3 space-y-2">
                   {confirmedWinners.length === 0 ? (
-                    <p className="text-center text-gray-400 text-sm mt-10">No confirmed winners yet.</p>
+                    <p className="text-center text-gray-400 text-sm mt-10">{t.noWinners}</p>
                   ) : (
                     confirmedWinners.map((w, i) => (
                        <div key={i} className="bg-gray-50 p-2 rounded flex items-center border border-gray-100 text-sm relative group">
